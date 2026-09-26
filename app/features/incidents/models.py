@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db.base import Base
 
 if TYPE_CHECKING:
-    from app.features.batteries.models import Battery
+    from app.features.bms.models import BmsUnit
     from app.features.rules.models import AlertRule
     from app.features.technicians.models import Technician
 
@@ -31,9 +31,9 @@ class Incident(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     ticket_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
-    battery_pk: Mapped[uuid.UUID] = mapped_column(
+    bms_pk: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("batteries.id", ondelete="CASCADE"),
+        ForeignKey("bms_units.id", ondelete="CASCADE"),
         index=True,
     )
     rule_id: Mapped[str | None] = mapped_column(
@@ -61,7 +61,7 @@ class Incident(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    battery: Mapped["Battery"] = relationship(back_populates="incidents")
+    bms_unit: Mapped["BmsUnit"] = relationship(back_populates="incidents")
     rule: Mapped["AlertRule | None"] = relationship()
     assigned_technician: Mapped["Technician | None"] = relationship(back_populates="incidents")
     events: Mapped[list["IncidentEvent"]] = relationship(back_populates="incident")

@@ -35,33 +35,50 @@ Config: [`alembic.ini`](alembic.ini), [`alembic/env.py`](alembic/env.py) (uses `
 ## Seed data
 
 ```bash
-uv run alembic upgrade head   # if tables are not created yet
-uv run python scripts/seed_batteries.py
-uv run python scripts/seed_batteries.py --count 200 --start 1001
+uv run alembic upgrade head
+uv run python scripts/seed_bms_sim_fleet.py
 uv run python scripts/seed_technicians.py
-uv run python scripts/seed_technicians.py --count 50 --start 1 --seed 42
 ```
 
-## Telemetry stream (SQS worker)
+## BMS telemetry (simulation → SQS → Postgres)
 
-Copy [`.env.example`](.env.example) → `.env` and set `TELEMETRY_QUEUE_URL`. AWS credentials must be available (`aws configure`, env vars, or IAM role).
+**Contract** (field names/types): [`bms_json_logs/telemetry_record.schema.json`](bms_json_logs/telemetry_record.schema.json)  
+**Example JSONL** under `bms_json_logs/out/examples/` is reference only — runtime data comes from the simulator.
 
-**Terminal 1 — consumer:**
+Copy [`.env.example`](.env.example) → `.env` and set `TELEMETRY_QUEUE_URL`.
+
+**Terminal 1 — worker:**
 
 ```bash
-uv run python worker/telemetry_consumer.py
+uv run python worker/bms_telemetry_consumer.py
 ```
 
-**Terminal 2 — simulator (publishes metrics for seeded `BAT-*` rows):**
+**Terminal 2 — fleet at 1 Hz (every unit, every tick; faults appear on the same stream as normal data):**
 
 ```bash
-uv run python scripts/publish_telemetry_stream.py --count 100 --interval 0.1
+uv run python scripts/publish_bms_telemetry_sim.py
 ```
 
-Message shape matches [`app/features/telemetry/schemas.py`](app/features/telemetry/schemas.py).
+Runs until Ctrl+C: **one message every 0.5 s**. Every **3 s**, one sample triggers **R-ELE-01** (`for_s: 1`) so the worker can insert a **ticket** from a single message.
+
+**You must run the worker at the same time** or messages only sit in SQS:
+
+```bash
+uv run python worker/bms_telemetry_consumer.py
+```
+
+SQS body: JSON envelope `{"format":"bms_telemetry_record","record":{…}}` → **`bms_telemetry_records`** + **`bms_metric_snapshots`**. Each new record is evaluated against **`ticket_policy`** (loaded from [`rules.yaml`](rules.yaml)); matching rules create a row in **`tickets`**.
+
+```bash
+uv run alembic upgrade head
+uv run python scripts/seed_ticket_policy.py
+# optional: --rules "/path/to/rules.yaml"
+```
+
+Re-seeding policy clears existing tickets and eval state for that table.
 
 ### Still to build (after ingest)
 
 - **Alert rules** seed + evaluator in the worker → `incidents` / `incident_events`
 - **Coordinator API** — list/detail/PATCH incidents (not raw telemetry inbox)
-- **Lambda** — same handler as `worker/telemetry_consumer.py` behind SQS trigger (optional deploy)
+- **Lambda** — same handler as `worker/bms_telemetry_consumer.py` behind SQS trigger (optional deploy)

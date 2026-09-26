@@ -1,79 +1,116 @@
 from datetime import datetime, timezone
 from typing import Any
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.features.batteries.models import Battery
-from app.features.telemetry.models import BatteryMetricSnapshot, TelemetryEvent, TelemetryEventKind
-from app.features.telemetry.schemas import TelemetryMessage
+from app.features.bms.models import BmsUnit
+from app.features.telemetry.models import BmsMetricSnapshot, BmsTelemetryRecord
+from app.features.telemetry.record import build_record_id
+from app.features.telemetry.schemas import BmsTelemetryRecordMessage
 
 
-class TelemetryIngestService:
+class BmsTelemetryIngestService:
     def __init__(self, db: Session) -> None:
         self._db = db
 
-    def process_message(self, message: TelemetryMessage) -> bool:
-        """
-        Persist one telemetry event. Returns True if a new row was inserted,
-        False if event_id was already stored (idempotent skip).
-        """
-        if self._event_exists(message.event_id):
-            return False
+    def ingest(self, message: BmsTelemetryRecordMessage) -> tuple[bool, uuid.UUID | None, uuid.UUID | None]:
+        """Returns (inserted, bms_pk, telemetry_record_pk)."""
+        record_id = build_record_id(
+            unit=message.unit,
+            site=message.site,
+            recorded_at=message.ts,
+        )
+        if self._record_exists(record_id):
+            return False, None, None
 
-        battery = self._get_battery_by_external_id(message.battery_id)
-        if battery is None:
-            raise ValueError(f"Unknown battery_id: {message.battery_id}")
+        bms = self._resolve_or_register_bms(message)
+        recorded_at = _ensure_aware(message.ts)
+        signals = message.signals()
+        row = BmsTelemetryRecord(
+            record_id=record_id,
+            bms_pk=bms.id,
+            unit_id=message.unit,
+            site_id=message.site,
+            recorded_at=recorded_at,
+            t_s=message.t_s,
+            signals=signals,
+        )
+        self._db.add(row)
+        self._upsert_snapshot(bms_pk=bms.id, recorded_at=recorded_at, signals=signals)
+        self._db.flush()
+        return True, bms.id, row.id
 
-        event_time = _ensure_aware(message.timestamp)
-        self._db.add(
-            TelemetryEvent(
-                event_id=message.event_id,
-                battery_pk=battery.id,
-                event_time=event_time,
-                kind=message.kind,
-                payload=message.payload,
+    def process_message(self, message: BmsTelemetryRecordMessage) -> bool:
+        inserted, _, _ = self.ingest(message)
+        return inserted
+
+    def _resolve_or_register_bms(self, message: BmsTelemetryRecordMessage) -> BmsUnit:
+        """Match by unit/site; align or create row so ingest works after a table wipe."""
+        exact = self._db.scalar(
+            select(BmsUnit).where(
+                BmsUnit.unit_id == message.unit,
+                BmsUnit.site_id == message.site,
             )
         )
+        if exact is not None:
+            return exact
 
-        if message.kind == TelemetryEventKind.metric:
-            self._upsert_metric_snapshot(
-                battery_pk=battery.id,
-                event_time=event_time,
-                payload=message.payload,
-            )
+        by_unit = self._db.scalar(select(BmsUnit).where(BmsUnit.unit_id == message.unit))
+        if by_unit is not None:
+            if by_unit.site_id != message.site:
+                conflict = self._db.scalar(
+                    select(BmsUnit.id).where(
+                        BmsUnit.site_id == message.site,
+                        BmsUnit.id != by_unit.id,
+                    )
+                )
+                if conflict is None:
+                    by_unit.site_id = message.site
+                    by_unit.site_name = message.site
+            return by_unit
 
+        by_site = self._db.scalar(select(BmsUnit).where(BmsUnit.site_id == message.site))
+        if by_site is not None:
+            return by_site
+
+        row = BmsUnit(
+            unit_id=message.unit,
+            site_id=message.site,
+            site_name=message.site,
+            extra={"source": "telemetry_ingest"},
+        )
+        self._db.add(row)
         self._db.flush()
-        return True
+        return row
 
-    def _event_exists(self, event_id: str) -> bool:
-        found = self._db.scalar(select(TelemetryEvent.id).where(TelemetryEvent.event_id == event_id))
+    def _record_exists(self, record_id: str) -> bool:
+        found = self._db.scalar(
+            select(BmsTelemetryRecord.id).where(BmsTelemetryRecord.record_id == record_id)
+        )
         return found is not None
 
-    def _get_battery_by_external_id(self, battery_id: str) -> Battery | None:
-        return self._db.scalar(select(Battery).where(Battery.battery_id == battery_id))
-
-    def _upsert_metric_snapshot(
+    def _upsert_snapshot(
         self,
         *,
-        battery_pk: Any,
-        event_time: datetime,
-        payload: dict[str, Any],
+        bms_pk: Any,
+        recorded_at: datetime,
+        signals: dict[str, Any],
     ) -> None:
-        snapshot = self._db.get(BatteryMetricSnapshot, battery_pk)
+        snapshot = self._db.get(BmsMetricSnapshot, bms_pk)
         if snapshot is None:
-            snapshot = BatteryMetricSnapshot(battery_pk=battery_pk)
+            snapshot = BmsMetricSnapshot(bms_pk=bms_pk)
             self._db.add(snapshot)
 
-        snapshot.soc_pct = _optional_float(payload.get("soc_pct"))
-        snapshot.temperature_c = _optional_float(payload.get("temperature_c"))
-        snapshot.inverter_status = _optional_str(payload.get("inverter_status"))
-        snapshot.grid_status = _optional_str(payload.get("grid_status"))
-        if "backup_available" in payload:
-            snapshot.backup_available = bool(payload["backup_available"])
-        snapshot.connectivity = _optional_str(payload.get("connectivity"))
-        snapshot.fault_code = _optional_str(payload.get("fault_code"))
-        snapshot.last_event_at = event_time
+        snapshot.soc_pct = _optional_float(signals.get("SOC"))
+        snapshot.pack_voltage_v = _optional_float(signals.get("PackVoltage"))
+        snapshot.pack_current_a = _optional_float(signals.get("PackCurrent"))
+        snapshot.tcell_max_c = _optional_float(signals.get("TcellMax"))
+        snapshot.bms_state = _optional_str(signals.get("BmsState"))
+        snapshot.hub_mode = _optional_str(signals.get("HubMode"))
+        snapshot.fault_bits = _optional_int(signals.get("FaultBits"))
+        snapshot.last_record_at = recorded_at
 
 
 def _ensure_aware(dt: datetime) -> datetime:
@@ -86,6 +123,12 @@ def _optional_float(value: Any) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)
 
 
 def _optional_str(value: Any) -> str | None:

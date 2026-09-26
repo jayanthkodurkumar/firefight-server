@@ -5,7 +5,7 @@ load_dotenv()
 
 app = FastAPI(
     title="Firefight",
-    description="Battery telemetry and incident coordination API",
+    description="BMS telemetry and incident coordination API",
     version="0.1.0",
 )
 
