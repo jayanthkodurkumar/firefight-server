@@ -1,0 +1,17 @@
+# ruff: noqa: E501
+
+ENTRIES: list[dict] = [
+    {"code": "HUB-001", "cat": "HUB", "title": "Transfer switch fails to open", "detect": "Grid lost but switch still closed", "reaction": "Inverter must NOT energize (lineworker safety)", "sev": 4, "dispatch": "out", "recovery": "truck", "inject": "ats = stuck_closed", "demo": True},
+    {"code": "HUB-002", "cat": "HUB", "title": "Transfer switch fails to close", "detect": "Grid back but switch stays open after 3 tries", "reaction": "Stay on battery; alert", "sev": 2, "dispatch": "out", "recovery": "retry", "inject": "ats = stuck_open", "demo": False},
+    {"code": "HUB-003", "cat": "HUB", "title": "Transfer contact welded", "detect": "Voltage across open contacts ≈ 0", "reaction": "Latch", "sev": 4, "dispatch": "out", "recovery": "truck", "inject": "ats_contact = welded", "demo": False},
+    {"code": "HUB-004", "cat": "HUB", "title": "Position feedback disagreement", "detect": "Aux contact vs voltage sensing disagree", "reaction": "Fail safe: no export", "sev": 3, "dispatch": "out", "recovery": "retry", "inject": "ats_aux = wrong", "demo": False},
+    {"code": "HUB-005", "cat": "HUB", "title": "Slow transfer", "detect": "Transfer time > 100 ms (target ~50 ms)", "reaction": "Log; electronics may have rebooted", "sev": 1, "dispatch": "full", "recovery": "auto", "inject": "ats_delay = 180ms", "demo": False},
+    {"code": "HUB-006", "cat": "HUB", "title": "Transfer chattering", "detect": "> 5 transfers in 10 min", "reaction": "Hold in island until grid stable", "sev": 2, "dispatch": "out", "recovery": "auto", "inject": "grid = flicker", "demo": False},
+    {"code": "HUB-007", "cat": "HUB", "title": "Load meter implausible", "detect": "Home load < 0 or ≠ grid + battery", "reaction": "Suspect CT; distrust load data", "sev": 2, "dispatch": "derated", "recovery": "truck", "inject": "ct_sign = -1", "demo": False},
+    {"code": "HUB-008", "cat": "HUB", "title": "Hub-inverter link lost", "detect": "No hub heartbeat > 200 ms", "reaction": "Fail safe: no export, keep backup", "sev": 3, "dispatch": "out", "recovery": "auto", "inject": "hub_link = down", "demo": False},
+    {"code": "HUB-009", "cat": "HUB", "title": "Main breaker open", "detect": "Service disconnect open", "reaction": "Log; no backup through panel", "sev": 1, "dispatch": "out", "recovery": "auto", "inject": "main_breaker = open", "demo": False},
+    {"code": "HUB-010", "cat": "HUB", "title": "Termination hot spot", "detect": "Lug temp > 90 °C or > 30 °C above ambient", "reaction": "Derate; inspect (loose lug)", "sev": 3, "dispatch": "derated", "recovery": "truck", "inject": "lug_temp = 95", "demo": False},
+    {"code": "HUB-011", "cat": "HUB", "title": "SPD end of life", "detect": "Surge protector status flag", "reaction": "Log; schedule swap", "sev": 1, "dispatch": "full", "recovery": "truck", "inject": "spd = eol", "demo": False},
+    {"code": "HUB-012", "cat": "HUB", "title": "Hub logic supply lost", "detect": "Hub supply undervoltage with grid present", "reaction": "Default to grid pass-through", "sev": 2, "dispatch": "out", "recovery": "auto", "inject": "hub_vcc = 0", "demo": False},
+    {"code": "HUB-013", "cat": "HUB", "title": "Generator interlock conflict", "detect": "Generator voltage present while battery energizing panel", "reaction": "Stop battery output", "sev": 3, "dispatch": "out", "recovery": "auto", "inject": "gen_on_panel = True", "demo": False},
+]

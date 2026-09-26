@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Load home battery DTC catalog JSON into dtc_catalog_meta + dtc_entries.
+"""Load home battery DTC catalog into dtc_catalog_meta + dtc_entries.
 
   uv run python scripts/seed_dtc_catalog.py
+  uv run python scripts/seed_dtc_catalog.py --bundled
   uv run python scripts/seed_dtc_catalog.py --file /path/to/catalog.json
 """
 
@@ -18,6 +19,7 @@ from sqlalchemy import select
 
 import app.core.db.models  # noqa: F401
 from app.core.db.session import SessionLocal
+from app.features.dtc.bundled import get_catalog as get_bundled_catalog
 from app.features.dtc.models import DtcCatalogMeta, DtcEntry
 
 DEFAULT_CATALOG = ROOT / "data" / "dtc_catalog.json"
@@ -75,16 +77,27 @@ def main() -> int:
     parser.add_argument(
         "--file",
         type=Path,
-        default=DEFAULT_CATALOG,
-        help=f"Catalog JSON path (default: {DEFAULT_CATALOG.relative_to(ROOT)})",
+        default=None,
+        help=f"Catalog JSON path (default: {DEFAULT_CATALOG.relative_to(ROOT)} if present, else bundled)",
+    )
+    parser.add_argument(
+        "--bundled",
+        action="store_true",
+        help="Use in-repo bundled catalog (ignores --file)",
     )
     args = parser.parse_args()
 
-    if not args.file.is_file():
-        print(f"Catalog file not found: {args.file}", file=sys.stderr)
-        return 1
-
-    catalog = load_catalog(args.file)
+    if args.bundled:
+        catalog = get_bundled_catalog()
+    else:
+        path = args.file or DEFAULT_CATALOG
+        if path.is_file():
+            catalog = load_catalog(path)
+        elif args.file is not None:
+            print(f"Catalog file not found: {path}", file=sys.stderr)
+            return 1
+        else:
+            catalog = get_bundled_catalog()
     if "meta" not in catalog or "dtcs" not in catalog:
         print("Invalid catalog: expected top-level 'meta' and 'dtcs'", file=sys.stderr)
         return 1

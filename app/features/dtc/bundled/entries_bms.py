@@ -1,0 +1,19 @@
+# ruff: noqa: E501
+
+ENTRIES: list[dict] = [
+    {"code": "BMS-001", "cat": "BMS", "title": "Cell sense wire open", "detect": "Cell reading at rail / open-wire test fails", "reaction": "Treat as worst case; stop", "sev": 3, "dispatch": "out", "recovery": "retry", "inject": "sense_open[i] = True", "demo": False},
+    {"code": "BMS-002", "cat": "BMS", "title": "AFE daisy-chain loss", "detect": "isoSPI/AFE frames missing > 3 cycles", "reaction": "Open contactors", "sev": 3, "dispatch": "out", "recovery": "retry", "inject": "afe_link = down", "demo": False},
+    {"code": "BMS-003", "cat": "BMS", "title": "Temp sensor out of range", "detect": "NTC open/short (reads < -40 or > 125 °C)", "reaction": "Substitute neighbour sensor; derate", "sev": 2, "dispatch": "derated", "recovery": "remote", "inject": "ntc[j] = -60", "demo": False},
+    {"code": "BMS-004", "cat": "BMS", "title": "Current sensor disagreement", "detect": "Hall vs shunt differ > 2% FS", "reaction": "Derate; mark SOC low confidence", "sev": 2, "dispatch": "derated", "recovery": "remote", "inject": "i_hall_bias = 0.05", "demo": False},
+    {"code": "BMS-005", "cat": "BMS", "title": "Contactor welded", "detect": "Voltage across contactor ≈ 0 after open command", "reaction": "Latch; isolate via other pole", "sev": 4, "dispatch": "out", "recovery": "truck", "inject": "contactor_pos = welded", "demo": True},
+    {"code": "BMS-006", "cat": "BMS", "title": "Contactor fails to close", "detect": "No aux feedback / no voltage after close", "reaction": "Retry 3x, then fault", "sev": 3, "dispatch": "out", "recovery": "retry", "inject": "contactor_neg = stuck_open", "demo": False},
+    {"code": "BMS-007", "cat": "BMS", "title": "Precharge failure", "detect": "DC link < 95% of pack V within 2 s", "reaction": "Abort close; retry", "sev": 3, "dispatch": "out", "recovery": "retry", "inject": "precharge_r = open", "demo": False},
+    {"code": "BMS-008", "cat": "BMS", "title": "Low isolation resistance", "detect": "IMD reading < 100 Ω/V", "reaction": "Open contactors; latch (ground fault)", "sev": 4, "dispatch": "out", "recovery": "truck", "inject": "r_iso = 20e3", "demo": False},
+    {"code": "BMS-009", "cat": "BMS", "title": "BMS watchdog reset", "detect": "MCU reset counter increments", "reaction": "Log; latch after 3 in 1 h", "sev": 1, "dispatch": "full", "recovery": "auto", "inject": "bms.reset()", "demo": False},
+    {"code": "BMS-010", "cat": "BMS", "title": "Aux supply undervoltage", "detect": "12 V aux < 10.5 V", "reaction": "Controlled shutdown", "sev": 3, "dispatch": "out", "recovery": "auto", "inject": "v_aux = 9.8", "demo": False},
+    {"code": "BMS-011", "cat": "BMS", "title": "Balancing circuit stuck on", "detect": "Cell keeps losing charge with balancing commanded off", "reaction": "Derate; flag", "sev": 2, "dispatch": "derated", "recovery": "truck", "inject": "bleed[i] = stuck_on", "demo": False},
+    {"code": "BMS-012", "cat": "BMS", "title": "Calibration memory corrupt", "detect": "NVM CRC fail on boot", "reaction": "Load conservative default limits", "sev": 2, "dispatch": "derated", "recovery": "remote", "inject": "nvm_crc = bad", "demo": False},
+    {"code": "BMS-013", "cat": "BMS", "title": "Limit message stale", "detect": "CCL/DCL to inverter not refreshed > 500 ms", "reaction": "Inverter ramps to 0 A", "sev": 3, "dispatch": "out", "recovery": "auto", "inject": "drop msg BMS_LIMITS", "demo": True},
+    {"code": "BMS-014", "cat": "BMS", "title": "Redundant measurement mismatch", "detect": "Safety MCU vs main MCU cell V differ > 30 mV", "reaction": "Stop", "sev": 3, "dispatch": "out", "recovery": "retry", "inject": "safety_mcu_bias = 0.04", "demo": False},
+    {"code": "BMS-015", "cat": "BMS", "title": "Fuse / pyro blown", "detect": "Fuse sense open", "reaction": "Latch", "sev": 4, "dispatch": "out", "recovery": "truck", "inject": "fuse = open", "demo": False},
+]
