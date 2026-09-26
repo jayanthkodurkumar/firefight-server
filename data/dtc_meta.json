@@ -1,0 +1,24 @@
+{
+  "title": "Home battery DTC catalog",
+  "note": "Illustrative engineering catalog. Not Base Power's real DTC list.",
+  "severity": {
+    "0": "Info",
+    "1": "Warn",
+    "2": "Derate",
+    "3": "Stop",
+    "4": "Lockout"
+  },
+  "categories": {
+    "BAT": "Battery pack & cells",
+    "BMS": "BMS electronics & sensing",
+    "THM": "Thermal, enclosure & environment",
+    "INV": "Inverter & power electronics",
+    "GRD": "Grid interface (IEEE 1547)",
+    "HUB": "Hub & transfer switch",
+    "DER": "Home loads, solar & generator",
+    "COM": "Communications",
+    "SWF": "Firmware & software",
+    "FLT": "Fleet & dispatch (cloud)",
+    "INS": "Installation & commissioning"
+  }
+}
