@@ -69,9 +69,10 @@ class BmsTelemetrySimulator:
     then clear (or leave the unit degraded). Matches how real telemetry arrives.
     """
 
-    def __init__(self, *, seed: int = 7, hazard_scale: float = 1.0) -> None:
+    def __init__(self, *, seed: int = 7, hazard_scale: float = 1.0, enable_episodes: bool = True) -> None:
         self._seed = seed
         self._hazard_scale = hazard_scale
+        self._enable_episodes = enable_episodes
         self._units: dict[tuple[str, str], _UnitState] = {}
 
     def _state(self, unit: str, site: str) -> _UnitState:
@@ -190,8 +191,9 @@ class BmsTelemetrySimulator:
             st.alive = (st.alive + 1) % 16
         # else counter repeats → alive_stuck rule
 
-        self._maybe_start_episode(st)
-        self._step_episode(st)
+        if self._enable_episodes:
+            self._maybe_start_episode(st)
+            self._step_episode(st)
         self._step_nominal(st)
 
         ts = st.started_at + timedelta(seconds=st.t_s)

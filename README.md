@@ -59,7 +59,7 @@ uv run python worker/bms_telemetry_consumer.py
 uv run python scripts/publish_bms_telemetry_sim.py
 ```
 
-Runs until Ctrl+C: **one message every 0.5 s**. Every **3 s**, one sample triggers **R-ELE-01** (`for_s: 1`) so the worker can insert a **ticket** from a single message.
+Runs until Ctrl+C: **one message every 0.5 s**; every **2 s** one of those messages advances a ticket scenario. Rules run in randomized, balanced rounds across R-THM-02, R-ELE-02, R-COM-02, and R-ELE-01. Multi-sample rules receive exactly their required consecutive samples on dedicated units, so each completed round produces one ticket of every type. Keep the worker running.
 
 **You must run the worker at the same time** or messages only sit in SQS:
 

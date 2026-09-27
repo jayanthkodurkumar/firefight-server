@@ -15,6 +15,8 @@ def list_tickets(
     base = select(Ticket).join(Ticket.bms_unit).options(
         joinedload(Ticket.bms_unit),
         joinedload(Ticket.telemetry_record),
+        joinedload(Ticket.assigned_technician),
+        joinedload(Ticket.assigned_by_user),
     )
     count_q = select(func.count()).select_from(Ticket)
 
@@ -39,6 +41,8 @@ def get_ticket_by_ticket_id(db: Session, ticket_id: str) -> Ticket | None:
             joinedload(Ticket.bms_unit),
             joinedload(Ticket.primary_rule),
             joinedload(Ticket.telemetry_record),
+            joinedload(Ticket.assigned_technician),
+            joinedload(Ticket.assigned_by_user),
         )
     )
 

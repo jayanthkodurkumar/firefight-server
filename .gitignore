@@ -1,2 +1,90 @@
+# --- Secrets & local env ---
 .env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# --- Virtual environments ---
 .venv/
+venv/
+ENV/
+env/
+
+# --- Packaging / build ---
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+wheels/
+share/python-wheels/
+
+# --- Test & coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# --- Type checkers & linters ---
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+
+# --- Logs & runtime ---
+*.log
+logs/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- AWS / cloud credentials (local) ---
+.aws/
+*.pem
+
+# --- Databases (local dev) ---
+*.sqlite
+*.sqlite3
+*.db
+
+# --- OS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Editors & IDEs ---
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# VS Code / Cursor — ignore local user settings; keep shared config if you add it later
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# --- uv (cache only; keep uv.lock committed) ---
+.uv/

@@ -326,6 +326,10 @@ def create_ticket_from_hits(
         hint=primary.hint,
         state_snapshot=signals,
         recorded_at=_aware(recorded_at),
+        assigned_technician_id=None,
+        assigned_by_user_id=None,
+        dispatch_notes=None,
+        assigned_at=None,
     )
     db.add(ticket)
     db.flush()

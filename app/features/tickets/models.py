@@ -12,10 +12,14 @@ from app.core.db.base import Base
 if TYPE_CHECKING:
     from app.features.bms.models import BmsUnit
     from app.features.telemetry.models import BmsTelemetryRecord
+    from app.features.technicians.models import Technician
+    from app.features.users.models import User
 
 
 class TicketStatus(str, enum.Enum):
     open = "open"
+    assigned = "assigned"
+    rejected = "rejected"
     resolved = "resolved"
 
 
@@ -97,7 +101,32 @@ class Ticket(Base):
     state_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    assigned_technician_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("technicians.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    dispatch_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    assigned_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    rejected_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     bms_unit: Mapped["BmsUnit"] = relationship(back_populates="tickets")
     telemetry_record: Mapped["BmsTelemetryRecord"] = relationship(back_populates="tickets")
     primary_rule: Mapped["TicketPolicy | None"] = relationship()
+    assigned_technician: Mapped["Technician | None"] = relationship(back_populates="tickets")
+    assigned_by_user: Mapped["User | None"] = relationship(foreign_keys=[assigned_by_user_id])
+    rejected_by_user: Mapped["User | None"] = relationship(foreign_keys=[rejected_by_user_id])

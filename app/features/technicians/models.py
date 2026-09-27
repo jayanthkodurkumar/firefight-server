@@ -10,6 +10,7 @@ from app.core.db.base import Base
 
 if TYPE_CHECKING:
     from app.features.incidents.models import Incident
+    from app.features.tickets.models import Ticket
 
 
 class Technician(Base):
@@ -22,3 +23,4 @@ class Technician(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     incidents: Mapped[list["Incident"]] = relationship(back_populates="assigned_technician")
+    tickets: Mapped[list["Ticket"]] = relationship(back_populates="assigned_technician")

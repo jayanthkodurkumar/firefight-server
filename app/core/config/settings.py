@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     # Comma-separated origins, e.g. http://localhost:5173,http://127.0.0.1:3000
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
 
+    # Chat / LangGraph QA agent (OpenAI-compatible via init_chat_model)
+    openai_api_key: str | None = None
+    chat_model: str = "openai:gpt-4o-mini"
+
+    jwt_secret_key: str = "dev-only-set-JWT_SECRET_KEY-in-env"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24
+    password_reset_expire_hours: int = 1
+    # Dev: return reset token in forgot-password JSON (disable when email is wired)
+    auth_expose_reset_token: bool = True
+
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
