@@ -88,3 +88,8 @@ Desktop.ini
 
 # --- uv (cache only; keep uv.lock committed) ---
 .uv/
+
+
+# --- Firefight scripts---
+drop_dtc_catalog.py
+fix_alembic_orphan_revision.py

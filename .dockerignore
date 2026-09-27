@@ -37,3 +37,6 @@ Thumbs.db
 
 docs
 README.md
+
+drop_dtc_catalog.py
+fix_alembic_orphan_revision.py
