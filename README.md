@@ -1,4 +1,4 @@
-# Firefight
+# firefight.ai
 
 ### Problem
 
@@ -10,7 +10,7 @@ Field operations engineers and dispatch coordinators at distributed-battery comp
 
 ### Solution
 
-Firefight turns BMS telemetry into tickets that are already triaged:
+firefight.ai turns BMS telemetry into tickets that are already triaged:
 
 - A **rules engine** flags out-of-range signals and opens a ticket with a DTC, severity, and priority.
 - An **AI agent** adds root cause analysis. It checks whether a reading is physically real or a sensor fault, separates the cause from its symptoms, and compares the unit with the rest of the fleet to spot repeating patterns, like a single firmware version.
