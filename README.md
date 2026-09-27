@@ -1,12 +1,36 @@
-# Firefight Server
+# Firefight
 
-Backend API for BMS telemetry ingestion, ticket evaluation, technician coordination, and AI-assisted chat for incident workflows.
+### Problem
 
-| | |
-| --- | --- |
-| **Frontend (repo)** | [github.com/jayanthkodurkumar/firefight-BP-client](https://github.com/jayanthkodurkumar/firefight-BP-client) |
-| **Frontend (live)** | [firefight-bp-client.vercel.app/login](https://firefight-bp-client.vercel.app/login) |
-| **Backend (live)** | [Elastic Beanstalk `/health`](http://bp-ai-env.eba-k32w42zi.us-east-2.elasticbeanstalk.com/health) |
+When a home battery fails in the field, the alert starts a long manual relay. A coordinator reads the ticket, guesses severity and priority, and works out which team should own it. A technician then digs through raw BMS logs to find what went wrong, runs tests, and updates the ticket. Each handoff costs time, and a lot of that time goes to working out why the ticket fired at all, while a family may be without backup power.
+
+### Who it helps
+
+Field operations engineers and dispatch coordinators at distributed-battery companies like Base, who triage failures across thousands of deployed homes.
+
+### Solution
+
+Firefight turns BMS telemetry into tickets that are already triaged:
+
+- A **rules engine** flags out-of-range signals and opens a ticket with a DTC, severity, and priority.
+- An **AI agent** adds root cause analysis. It checks whether a reading is physically real or a sensor fault, separates the cause from its symptoms, and compares the unit with the rest of the fleet to spot repeating patterns, like a single firmware version.
+- Engineers can **chat** with the agent about any ticket: “Which signals went out of range?”, “Why was this raised?”, “Is this happening elsewhere?”
+- The agent then **recommends the right technician** based on skills, region, on-call status, and current workload.
+
+### Impact
+
+Triage that took several people and handoffs becomes one screen and one conversation. Critical issues, like thermal runaway precursors or homes without backup, reach the right technician first. Fleet-wide patterns show up at the second ticket instead of the thirtieth. On a simulated 40-home fleet, the pipeline caught 29 of 30 planted faults with zero false alarms.
+
+**Tracks:** Most Commercializable (primary), Orchestration.
+
+
+|                     |                                                                                                                                                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend (repo)** | [github.com/jayanthkodurkumar/firefight-BP-client](https://github.com/jayanthkodurkumar/firefight-BP-client)                                                                                                |
+| **Frontend (live)** | [firefight-bp-client.vercel.app/login](https://firefight-bp-client.vercel.app/login)                                                                                                                        |
+| **Backend (live)**  | [Elastic Beanstalk `/health](http://bp-ai-env.eba-k32w42zi.us-east-2.elasticbeanstalk.com/health)`                                                                                                          |
+| **LLM (chat)**      | [OpenAI GPT-4o mini](https://platform.openai.com/docs/models/gpt-4o-mini) (`gpt-4o-mini`) — router, QA agent, and allocation agent via LangChain; override with `CHAT_MODEL` (default `openai:gpt-4o-mini`) |
+
 
 ---
 
@@ -27,11 +51,7 @@ The **web client** is the React app [firefight-BP-client](https://github.com/jay
 
 ---
 
-
-
 ## Quick start (local)
-
-
 
 ### 1. Clone and install dependencies
 
@@ -41,8 +61,6 @@ cd firefight-server
 uv sync
 ```
 
-
-
 ### 2. Environment file
 
 Copy the example env file and fill in values (see [Environment variables](#environment-variables)):
@@ -51,15 +69,11 @@ Copy the example env file and fill in values (see [Environment variables](#envir
 cp .env.example .env
 ```
 
-
-
 ### 3. Database migrations
 
 ```bash
 uv run alembic upgrade head
 ```
-
-
 
 ### 4. Run the API
 
@@ -80,8 +94,6 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | OpenAPI docs | [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)     |
 
 
-
-
 ### 5. Optional seed data
 
 ```bash
@@ -91,8 +103,6 @@ uv run python scripts/seed_ticket_policy.py
 ```
 
 ---
-
-
 
 ## Docker Compose
 
@@ -105,8 +115,6 @@ Desktop/
 ├── firefight-server/    # this repo — docker-compose.yaml lives here
 └── firefight-client/    # React app — required for the `client` service
 ```
-
-
 
 ### Steps
 
@@ -135,8 +143,6 @@ The server image does not run migrations automatically on startup.
 
 ---
 
-
-
 ## Environment variables
 
 Create `.env` from [.env.example](.env.example). Variable names map to [app/core/config/settings.py](app/core/config/settings.py) (Pydantic reads them in uppercase).
@@ -149,8 +155,6 @@ Create `.env` from [.env.example](.env.example). Variable names map to [app/core
 | `DATABASE_URL` | PostgreSQL URL for SQLAlchemy, e.g. `postgresql+psycopg://USER:PASSWORD@HOST:5432/DB_NAME` |
 
 
-
-
 ### Strongly recommended (production)
 
 
@@ -158,8 +162,6 @@ Create `.env` from [.env.example](.env.example). Variable names map to [app/core
 | ---------------- | -------------------------------------------------------------------------- |
 | `JWT_SECRET_KEY` | Long random string for signing access tokens. Default in code is dev-only. |
 | `OPENAI_API_KEY` | API key for LangChain/LangGraph chat and allocation agents                 |
-
-
 
 
 ### AWS / telemetry
@@ -191,11 +193,9 @@ Configure AWS credentials on your machine or in the deployment environment so bo
 
 ---
 
-
-
 ## Architecture
 
-Diagrams live in [`docs/`](docs/).
+Diagrams live in `[docs/](docs/)`.
 
 ### System overview
 
@@ -217,24 +217,20 @@ Orchestrated routing: one message is classified, then either the **QA** or **all
 
 ## Tech stack
 
-
-
 ### Server (this repository)
 
 
-| Layer      | Technology                                                                                                                                |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime    | Python 3.12                                                                                                                               |
-| API        | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/)                                                             |
-| Data       | [SQLAlchemy 2](https://www.sqlalchemy.org/), [Alembic](https://alembic.sqlalchemy.org/), PostgreSQL ([psycopg](https://www.psycopg.org/)) |
-| Config     | [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/), `python-dotenv`                                        |
-| Auth       | JWT ([python-jose](https://github.com/mpdavis/python-jose)), [bcrypt](https://github.com/pyca/bcrypt/)                                    |
-| Messaging  | [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SQS)                                                     |
-| AI / chat  | [LangGraph](https://langchain-ai.github.io/langgraph/), [LangChain](https://www.langchain.com/), OpenAI-compatible models                 |
-| Tooling    | [uv](https://docs.astral.sh/uv/) (deps & lockfile)                                                                                        |
-| Containers | Docker, Docker Compose                                                                                                                    |
-
-
+| Layer      | Technology                                                                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime    | Python 3.12                                                                                                                                                                                  |
+| API        | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/)                                                                                                                |
+| Data       | [SQLAlchemy 2](https://www.sqlalchemy.org/), [Alembic](https://alembic.sqlalchemy.org/), PostgreSQL ([psycopg](https://www.psycopg.org/))                                                    |
+| Config     | [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/), `python-dotenv`                                                                                           |
+| Auth       | JWT ([python-jose](https://github.com/mpdavis/python-jose)), [bcrypt](https://github.com/pyca/bcrypt/)                                                                                       |
+| Messaging  | [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SQS)                                                                                                        |
+| AI / chat  | [LangGraph](https://langchain-ai.github.io/langgraph/), [LangChain](https://www.langchain.com/), **GPT-4o mini** (`[init_chat_model](https://python.langchain.com/docs/integrations/chat/)`) |
+| Tooling    | [uv](https://docs.astral.sh/uv/) (deps & lockfile)                                                                                                                                           |
+| Containers | Docker, Docker Compose                                                                                                                                                                       |
 
 
 ### Client ([firefight-BP-client](https://github.com/jayanthkodurkumar/firefight-BP-client))
@@ -250,8 +246,6 @@ Orchestrated routing: one message is classified, then either the **QA** or **all
 
 ---
 
-
-
 ## BMS telemetry (local dev)
 
 **Schema:** [bms_json_logs/telemetry_record.schema.json](bms_json_logs/telemetry_record.schema.json)  
@@ -264,7 +258,7 @@ Orchestrated routing: one message is classified, then either the **QA** or **all
 uv run python worker/bms_telemetry_consumer.py
 ```
 
-3. **Terminal 2 — simulator:**
+1. **Terminal 2 — simulator:**
 
 ```bash
 uv run python scripts/publish_bms_telemetry_sim.py
@@ -283,8 +277,6 @@ Re-seeding policy clears existing tickets and eval state for that policy table.
 
 ---
 
-
-
 ## Migrations (Alembic)
 
 ```bash
@@ -295,8 +287,6 @@ uv run alembic revision --autogenerate -m "describe_change"
 Config: [alembic.ini](alembic.ini), [alembic/env.py](alembic/env.py) (uses `DATABASE_URL` from `.env`).
 
 ---
-
-
 
 ## Project layout (high level)
 
