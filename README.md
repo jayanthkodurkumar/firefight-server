@@ -1,27 +1,289 @@
-# firefight-server
+# Firefight Server
 
-## Setup (uv)
+Backend API for BMS telemetry ingestion, ticket evaluation, technician coordination, and AI-assisted chat for incident workflows.
 
-[uv](https://docs.astral.sh/uv/) is the project package manager (see [FastAPI docs](https://fastapi.tiangolo.com/)).
+| | |
+| --- | --- |
+| **Frontend (repo)** | [github.com/jayanthkodurkumar/firefight-BP-client](https://github.com/jayanthkodurkumar/firefight-BP-client) |
+| **Frontend (live)** | [firefight-bp-client.vercel.app/login](https://firefight-bp-client.vercel.app/login) |
+| **Backend (live)** | [Elastic Beanstalk `/health`](http://bp-ai-env.eba-k32w42zi.us-east-2.elasticbeanstalk.com/health) |
+
+---
+
+## Prerequisites
+
+
+| Requirement                          | Notes                                                           |
+| ------------------------------------ | --------------------------------------------------------------- |
+| **Python 3.12+**                     | Matches `pyproject.toml`                                        |
+| **[uv](https://docs.astral.sh/uv/)** | Package manager and virtualenv                                  |
+| **PostgreSQL**                       | Connection string in `DATABASE_URL`                             |
+| **Docker & Docker Compose**          | Optional; for containerized server + client                     |
+| **AWS credentials**                  | For SQS telemetry (local profile or env vars boto3 understands) |
+| **OpenAI API key**                   | For chat / allocation agents                                    |
+
+
+The **web client** is the React app [firefight-BP-client](https://github.com/jayanthkodurkumar/firefight-BP-client). Docker Compose expects a sibling checkout at `../firefight-client` (clone the repo and use that folder name, or adjust `docker-compose.yaml`).
+
+---
+
+
+
+## Quick start (local)
+
+
+
+### 1. Clone and install dependencies
 
 ```bash
+git clone <your-repo-url> firefight-server
+cd firefight-server
 uv sync
 ```
 
-## Run API
+
+
+### 2. Environment file
+
+Copy the example env file and fill in values (see [Environment variables](#environment-variables)):
+
+```bash
+cp .env.example .env
+```
+
+
+
+### 3. Database migrations
+
+```bash
+uv run alembic upgrade head
+```
+
+
+
+### 4. Run the API
 
 ```bash
 uv run fastapi dev app/main.py
 ```
 
-Or:
+Or with Uvicorn directly:
 
 ```bash
-uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Health: http://127.0.0.1:8000/health  
-Docs: http://127.0.0.1:8000/docs
+
+| Endpoint     | URL                                                          |
+| ------------ | ------------------------------------------------------------ |
+| Health       | [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) |
+| OpenAPI docs | [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)     |
+
+
+
+
+### 5. Optional seed data
+
+```bash
+uv run python scripts/seed_bms_sim_fleet.py
+uv run python scripts/seed_technicians.py
+uv run python scripts/seed_ticket_policy.py
+```
+
+---
+
+
+
+## Docker Compose
+
+Compose runs the **API** (this repo) and the **Vite client** (sibling `firefight-client`).
+
+### Layout
+
+```
+Desktop/
+├── firefight-server/    # this repo — docker-compose.yaml lives here
+└── firefight-client/    # React app — required for the `client` service
+```
+
+
+
+### Steps
+
+1. Create `.env` in `firefight-server` (same as local setup).
+2. Ensure `firefight-client` is checked out next to this repo.
+3. From `firefight-server`:
+
+```bash
+docker compose up --build
+```
+
+
+| Service  | Port | Description                                           |
+| -------- | ---- | ----------------------------------------------------- |
+| `server` | 8000 | FastAPI (`uvicorn app.main:app`)                      |
+| `client` | 5173 | Vite dev server; `VITE_API_URL=http://localhost:8000` |
+
+
+Run migrations against your database **before** or **after** starting the server (from the host, with the same `.env`):
+
+```bash
+uv run alembic upgrade head
+```
+
+The server image does not run migrations automatically on startup.
+
+---
+
+
+
+## Environment variables
+
+Create `.env` from [.env.example](.env.example). Variable names map to [app/core/config/settings.py](app/core/config/settings.py) (Pydantic reads them in uppercase).
+
+### Required
+
+
+| Variable       | Description                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| `DATABASE_URL` | PostgreSQL URL for SQLAlchemy, e.g. `postgresql+psycopg://USER:PASSWORD@HOST:5432/DB_NAME` |
+
+
+
+
+### Strongly recommended (production)
+
+
+| Variable         | Description                                                                |
+| ---------------- | -------------------------------------------------------------------------- |
+| `JWT_SECRET_KEY` | Long random string for signing access tokens. Default in code is dev-only. |
+| `OPENAI_API_KEY` | API key for LangChain/LangGraph chat and allocation agents                 |
+
+
+
+
+### AWS / telemetry
+
+
+| Variable              | Description                                       |
+| --------------------- | ------------------------------------------------- |
+| `TELEMETRY_QUEUE_URL` | SQS queue URL for BMS telemetry messages          |
+| `AWS_REGION`          | AWS region for SQS (default in code: `us-east-2`) |
+
+
+Configure AWS credentials on your machine or in the deployment environment so boto3 can read from the queue (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role).
+
+### Optional (defaults in settings)
+
+
+| Variable                  | Default                                    | Description                                                           |
+| ------------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| `CORS_ORIGINS`            | Local Vite ports + production frontend URL | Comma-separated allowed origins                                       |
+| `CHAT_MODEL`              | `openai:gpt-4o-mini`                       | Model id for `init_chat_model`                                        |
+| `JWT_ALGORITHM`           | `HS256`                                    | JWT signing algorithm                                                 |
+| `JWT_EXPIRE_MINUTES`      | `1440`                                     | Access token lifetime                                                 |
+| `AUTH_EXPOSE_RESET_TOKEN` | `true`                                     | Dev: return password-reset token in JSON; disable when email is wired |
+| `SQS_WAIT_TIME_SECONDS`   | `20`                                       | Long-poll wait for telemetry worker                                   |
+| `SQS_MAX_MESSAGES`        | `10`                                       | Max messages per SQS receive                                          |
+
+
+`.env` is loaded via `python-dotenv` and is **not** committed (see `.gitignore`).
+
+---
+
+
+
+## Architecture
+
+Diagrams live in [`docs/`](docs/).
+
+### System overview
+
+![System overview](docs/system-overview.png)
+
+BMS telemetry flows through SQS into PostgreSQL; the FastAPI server exposes tickets, technicians, auth, and orchestrated multi-agent chat. The React client calls the API.
+
+### AI multi-agent flow
+
+Orchestrated routing: one message is classified, then either the **QA** or **allocation** specialist runs (not both in parallel).
+
+![Multi-agent chat flow](docs/multi-agent-flow.png)
+
+### Deployment
+
+![Deployment](docs/deployment.png)
+
+---
+
+## Tech stack
+
+
+
+### Server (this repository)
+
+
+| Layer      | Technology                                                                                                                                |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime    | Python 3.12                                                                                                                               |
+| API        | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/)                                                             |
+| Data       | [SQLAlchemy 2](https://www.sqlalchemy.org/), [Alembic](https://alembic.sqlalchemy.org/), PostgreSQL ([psycopg](https://www.psycopg.org/)) |
+| Config     | [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/), `python-dotenv`                                        |
+| Auth       | JWT ([python-jose](https://github.com/mpdavis/python-jose)), [bcrypt](https://github.com/pyca/bcrypt/)                                    |
+| Messaging  | [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS SQS)                                                     |
+| AI / chat  | [LangGraph](https://langchain-ai.github.io/langgraph/), [LangChain](https://www.langchain.com/), OpenAI-compatible models                 |
+| Tooling    | [uv](https://docs.astral.sh/uv/) (deps & lockfile)                                                                                        |
+| Containers | Docker, Docker Compose                                                                                                                    |
+
+
+
+
+### Client ([firefight-BP-client](https://github.com/jayanthkodurkumar/firefight-BP-client))
+
+
+| Layer      | Technology                               |
+| ---------- | ---------------------------------------- |
+| UI         | [React](https://react.dev/)              |
+| Components | [Mantine](https://mantine.dev/)          |
+| State      | [Zustand](https://zustand.docs.pmnd.rs/) |
+| Build      | Vite (typical for Mantine + React)       |
+
+
+---
+
+
+
+## BMS telemetry (local dev)
+
+**Schema:** [bms_json_logs/telemetry_record.schema.json](bms_json_logs/telemetry_record.schema.json)  
+**Rules:** [rules.yaml](rules.yaml) — loaded into `ticket_policy` for ticket evaluation.
+
+1. Set `TELEMETRY_QUEUE_URL` (and AWS) in `.env`.
+2. **Terminal 1 — consumer:**
+
+```bash
+uv run python worker/bms_telemetry_consumer.py
+```
+
+3. **Terminal 2 — simulator:**
+
+```bash
+uv run python scripts/publish_bms_telemetry_sim.py
+```
+
+Keep the worker running while publishing; otherwise messages accumulate in SQS only.
+
+SQS payload: JSON envelope `{"format":"bms_telemetry_record","record":{…}}` → `bms_telemetry_records` / `bms_metric_snapshots`, then policy evaluation → `tickets`.
+
+```bash
+uv run alembic upgrade head
+uv run python scripts/seed_ticket_policy.py
+```
+
+Re-seeding policy clears existing tickets and eval state for that policy table.
+
+---
+
+
 
 ## Migrations (Alembic)
 
@@ -30,55 +292,23 @@ uv run alembic upgrade head
 uv run alembic revision --autogenerate -m "describe_change"
 ```
 
-Config: [`alembic.ini`](alembic.ini), [`alembic/env.py`](alembic/env.py) (uses `DATABASE_URL` from `.env`).
+Config: [alembic.ini](alembic.ini), [alembic/env.py](alembic/env.py) (uses `DATABASE_URL` from `.env`).
 
-## Seed data
+---
 
-```bash
-uv run alembic upgrade head
-uv run python scripts/seed_bms_sim_fleet.py
-uv run python scripts/seed_technicians.py
+
+
+## Project layout (high level)
+
+```
+app/
+├── main.py              # FastAPI app, CORS, routers
+├── core/                # config, DB session, shared models
+└── features/            # auth, tickets, technicians, chat
+alembic/                 # database migrations
+worker/                  # SQS telemetry consumer
+scripts/                 # seeds and BMS simulator publisher
 ```
 
-## BMS telemetry (simulation → SQS → Postgres)
+---
 
-**Contract** (field names/types): [`bms_json_logs/telemetry_record.schema.json`](bms_json_logs/telemetry_record.schema.json)  
-**Example JSONL** under `bms_json_logs/out/examples/` is reference only — runtime data comes from the simulator.
-
-Copy [`.env.example`](.env.example) → `.env` and set `TELEMETRY_QUEUE_URL`.
-
-**Terminal 1 — worker:**
-
-```bash
-uv run python worker/bms_telemetry_consumer.py
-```
-
-**Terminal 2 — fleet at 1 Hz (every unit, every tick; faults appear on the same stream as normal data):**
-
-```bash
-uv run python scripts/publish_bms_telemetry_sim.py
-```
-
-Runs until Ctrl+C: **one message every 0.5 s**; every **2 s** one of those messages advances a ticket scenario. Rules run in randomized, balanced rounds across R-THM-02, R-ELE-02, R-COM-02, and R-ELE-01. Multi-sample rules receive exactly their required consecutive samples on dedicated units, so each completed round produces one ticket of every type. Keep the worker running.
-
-**You must run the worker at the same time** or messages only sit in SQS:
-
-```bash
-uv run python worker/bms_telemetry_consumer.py
-```
-
-SQS body: JSON envelope `{"format":"bms_telemetry_record","record":{…}}` → **`bms_telemetry_records`** + **`bms_metric_snapshots`**. Each new record is evaluated against **`ticket_policy`** (loaded from [`rules.yaml`](rules.yaml)); matching rules create a row in **`tickets`**.
-
-```bash
-uv run alembic upgrade head
-uv run python scripts/seed_ticket_policy.py
-# optional: --rules "/path/to/rules.yaml"
-```
-
-Re-seeding policy clears existing tickets and eval state for that table.
-
-### Still to build (after ingest)
-
-- **Alert rules** seed + evaluator in the worker → `incidents` / `incident_events`
-- **Coordinator API** — list/detail/PATCH incidents (not raw telemetry inbox)
-- **Lambda** — same handler as `worker/bms_telemetry_consumer.py` behind SQS trigger (optional deploy)
