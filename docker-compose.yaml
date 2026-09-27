@@ -1,0 +1,20 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+
+  client:
+    build:
+      context: ../firefight-client
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
