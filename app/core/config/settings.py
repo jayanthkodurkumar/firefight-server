@@ -14,8 +14,11 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-2"
     sqs_wait_time_seconds: int = 20
     sqs_max_messages: int = 10
-    # Comma-separated origins, e.g. http://localhost:5173,http://127.0.0.1:3000
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
+    # Comma-separated origins (local dev + production frontend)
+    cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,"
+        "https://firefight-bp-client.vercel.app"
+    )
 
     # Chat / LangGraph QA agent (OpenAI-compatible via init_chat_model)
     openai_api_key: str | None = None
